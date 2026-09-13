@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sumbu Kartesius — Alat Bantu Mengajar</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+<style>
+  :root{
+    --bg:#ffffff;
+    --ink:#0a0a0a;
+    --panel:#f4f4f4;
+    --panel-border:#d8d8d8;
+    --accent:#1d4ed8;
+    --accent-soft:#e8edfc;
+    --muted:#6b6b6b;
+    --danger:#b91c1c;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    font-family:var(--sans); color:var(--ink); background:var(--bg);
+  }
+  #app{
+    display:flex; flex-direction:column; height:100vh; width:100vw;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; border-bottom:1px solid var(--panel-border);
+    background:var(--panel); flex-shrink:0; gap:10px; flex-wrap:wrap;
+  }
+  header h1{
+    font-size:15px; font-weight:600; margin:0; letter-spacing:0.01em; white-space:nowrap;
+  }
+  .toolbar{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  }
+  .seg{
+    display:flex; border:1px solid var(--panel-border); border-radius:8px; overflow:hidden; background:#fff;
+  }
+  .seg button{
+    border:none; background:#fff; padding:7px 12px; font-size:13px; cursor:pointer;
+    color:var(--ink); border-right:1px solid var(--panel-border);
+  }
+  .seg button:last-child{border-right:none;}
+  .seg button.active{background:var(--accent); color:#fff;}
+  .btn{
+    border:1px solid var(--panel-border); background:#fff; border-radius:8px;
+    padding:7px 11px; font-size:13px; cursor:pointer; color:var(--ink);
+  }
+  .btn:hover{background:#f0f0f0;}
+  .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .btn.primary:hover{background:#1a3fb0;}
+  .btn.ghost{background:transparent;}
+  main{
+    flex:1; display:flex; min-height:0; position:relative;
+  }
+  #canvasWrap{
+    flex:1; position:relative; min-width:0;
+  }
+  canvas{
+    display:block; width:100%; height:100%; touch-action:none; cursor:grab;
+  }
+  canvas.mode-point{cursor:crosshair;}
+  canvas.mode-measure{cursor:crosshair;}
+  canvas.dragging{cursor:grabbing;}
+  #hud{
+    position:absolute; left:10px; bottom:10px; font-family:var(--mono); font-size:12px;
+    background:rgba(255,255,255,0.9); border:1px solid var(--panel-border); border-radius:6px;
+    padding:4px 8px; color:var(--muted); pointer-events:none;
+  }
+  #zoomHud{
+    position:absolute; right:10px; bottom:10px; display:flex; gap:6px;
+  }
+  #zoomHud button{
+    width:30px; height:30px; border-radius:6px; border:1px solid var(--panel-border);
+    background:rgba(255,255,255,0.95); font-size:16px; cursor:pointer; line-height:1;
+  }
+  aside{
+    width:280px; border-left:1px solid var(--panel-border); background:#fcfcfc;
+    padding:14px; overflow-y:auto; flex-shrink:0;
+  }
+  aside h2{
+    font-size:12px; text-transform:none; letter-spacing:0.02em; color:var(--muted);
+    margin:0 0 8px 0; font-weight:600; border-bottom:1px solid var(--panel-border); padding-bottom:6px;
+  }
+  .block{margin-bottom:18px;}
+  .fn-row{
+    display:flex; align-items:center; gap:6px; margin-bottom:6px;
+    font-family:var(--mono); font-size:12.5px;
+  }
+  .fn-row input[type=text]{
+    flex:1; min-width:0; padding:6px 7px; border:1px solid var(--panel-border);
+    border-radius:6px; font-family:var(--mono); font-size:12.5px;
+  }
+  .swatch{
+    width:14px; height:14px; border-radius:3px; flex-shrink:0; border:1px solid rgba(0,0,0,0.15);
+  }
+  .fn-row button{
+    border:none; background:none; color:var(--muted); cursor:pointer; font-size:15px; padding:2px 4px;
+  }
+  .fn-row button:hover{color:var(--danger);}
+  .add-fn{
+    display:flex; gap:6px; margin-top:8px;
+  }
+  .add-fn input{
+    flex:1; min-width:0; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px;
+    font-family:var(--mono); font-size:12.5px;
+  }
+  .add-fn button{
+    border:none; background:var(--accent); color:#fff; border-radius:6px; padding:0 12px; cursor:pointer; font-size:13px;
+  }
+  .list-item{
+    display:flex; justify-content:space-between; align-items:center;
+    font-family:var(--mono); font-size:12px; padding:5px 6px; border-radius:5px;
+  }
+  .list-item:nth-child(odd){background:var(--panel);}
+  .list-item button{
+    border:none; background:none; color:var(--muted); cursor:pointer; font-size:14px;
+  }
+  .list-item button:hover{color:var(--danger);}
+  .empty-note{
+    font-size:12px; color:var(--muted); font-style:italic;
+  }
+  .measure-box{
+    font-family:var(--mono); font-size:12.5px; background:var(--panel); border-radius:6px;
+    padding:8px; line-height:1.6;
+  }
+  .checkbox-row{
+    display:flex; align-items:center; gap:7px; font-size:13px; margin-bottom:6px;
+  }
+  .checkbox-row input{width:14px; height:14px;}
+  .err{color:var(--danger); font-size:11.5px; margin-top:4px;}
+  @media (max-width: 760px){
+    aside{
+      position:absolute; right:0; top:0; bottom:0; z-index:5; box-shadow:-4px 0 14px rgba(0,0,0,0.1);
+      transform:translateX(100%); transition:transform 0.18s ease;
+    }
+    aside.open{transform:translateX(0);}
+    header h1{display:none;}
+  }
+  @media print{
+    header, aside, #hud, #zoomHud { display:none !important; }
+    html, body, #app, main, #canvasWrap { height:100% !important; overflow:visible !important; }
+    canvas{ width:100% !important; height:100% !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Sumbu Kartesius</h1>
+    <div class="toolbar">
+      <div class="seg" id="modeSeg">
+        <button data-mode="pan" class="active">Geser</button>
+        <button data-mode="point">Titik</button>
+        <button data-mode="measure">Ukur</button>
+      </div>
+      <button class="btn" id="resetBtn">Reset tampilan</button>
+      <button class="btn" id="clearBtn">Bersihkan semua</button>
+      <button class="btn" id="exportBtn">Ekspor</button>
+      <button class="btn" id="importBtn">Impor</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none;">
+      <button class="btn" id="printBtn">Cetak</button>
+      <button class="btn" id="panelToggle">Panel ☰</button>
+    </div>
+  </header>
+  <main>
+    <div id="canvasWrap">
+      <canvas id="cv"></canvas>
+      <div id="hud">x: 0.00, y: 0.00</div>
+      <div id="zoomHud">
+        <button id="zoomOut">−</button>
+        <button id="zoomIn">+</button>
+      </div>
+    </div>
+    <aside id="panel">
+      <div class="block">
+        <h2>Tampilan</h2>
+        <div class="checkbox-row"><input type="checkbox" id="chkGrid" checked><label for="chkGrid">Tampilkan grid</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="chkNumbers" checked><label for="chkNumbers">Tampilkan angka sumbu</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="chkMinor" checked><label for="chkMinor">Garis bantu halus</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="chkHideLabels"><label for="chkHideLabels">Sembunyikan label koordinat (mode kuis)</label></div>
+      </div>
+      <div class="block">
+        <h2>Fungsi y = f(x)</h2>
+        <div id="fnList"></div>
+        <div class="add-fn">
+          <input type="text" id="fnInput" placeholder="mis. x^2, sin(x), 2x+1">
+          <button id="fnAdd">+</button>
+        </div>
+        <div class="err" id="fnErr"></div>
+      </div>
+      <div class="block">
+        <h2>Tambah titik manual</h2>
+        <input type="text" id="ptNameInput" placeholder="Nama titik (misal: Ayam)" style="width:100%; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-size:12.5px; margin-bottom:6px;">
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+          <input type="text" inputmode="text" id="ptXInput" placeholder="x" style="width:50%; min-width:0; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-family:var(--mono); font-size:12.5px;">
+          <input type="text" inputmode="text" id="ptYInput" placeholder="y" style="width:50%; min-width:0; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-family:var(--mono); font-size:12.5px;">
+        </div>
+        <button class="btn primary" id="ptAddBtn" style="width:100%;">+ Tambah titik</button>
+        <div class="err" id="ptErr"></div>
+      </div>
+      <div class="block">
+        <h2>Refleksi titik</h2>
+        <input type="text" id="reflInput" placeholder="Titik: nama atau x,y" style="width:100%; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-size:12.5px; margin-bottom:6px;">
+        <select id="reflAxis" style="width:100%; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-size:12.5px; margin-bottom:6px;">
+          <option value="x">Cerminkan terhadap sumbu X</option>
+          <option value="y">Cerminkan terhadap sumbu Y</option>
+          <option value="yx">Cerminkan terhadap garis y = x</option>
+          <option value="origin">Cerminkan terhadap titik asal (0,0)</option>
+        </select>
+        <button class="btn primary" id="reflBtn" style="width:100%;">+ Refleksikan</button>
+        <div class="err" id="reflErr"></div>
+      </div>
+      <div class="block">
+        <h2>Titik (klik pada mode Titik)</h2>
+        <div id="ptList"></div>
+        <p class="empty-note" id="ptEmpty">Belum ada titik.</p>
+      </div>
+      <div class="block">
+        <h2>Garis penghubung</h2>
+        <div class="checkbox-row"><input type="checkbox" id="chkConn" checked><label for="chkConn">Tampilkan garis penghubung</label></div>
+        <input type="text" id="connFromInput" placeholder="Titik A: nama atau x,y" style="width:100%; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-size:12.5px; margin-bottom:6px;">
+        <input type="text" id="connToInput" placeholder="Titik B: nama atau x,y" style="width:100%; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-size:12.5px; margin-bottom:6px;">
+        <button class="btn primary" id="connAddBtn" style="width:100%;">+ Hubungkan</button>
+        <div class="err" id="connErr"></div>
+        <div id="connList" style="margin-top:8px;"></div>
+        <p class="empty-note" id="connEmpty">Belum ada garis penghubung.</p>
+      </div>
+      <div class="block">
+        <h2>Bangun datar (poligon)</h2>
+        <input type="text" id="shapeInput" placeholder="Titik berurutan, mis: A, B, C" style="width:100%; padding:7px 8px; border:1px solid var(--panel-border); border-radius:6px; font-size:12.5px; margin-bottom:6px;">
+        <button class="btn primary" id="shapeAddBtn" style="width:100%;">+ Buat bangun</button>
+        <div class="err" id="shapeErr"></div>
+        <div id="shapeList" style="margin-top:8px;"></div>
+        <p class="empty-note" id="shapeEmpty">Belum ada bangun datar.</p>
+      </div>
+      <div class="block" id="measureBlock" style="display:none;">
+        <h2>Pengukuran</h2>
+        <div class="measure-box" id="measureInfo">Klik dua titik di kanvas untuk mengukur jarak &amp; kemiringan.</div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+const hud = document.getElementById('hud');
+const panel = document.getElementById('panel');
+
+let view = { scale: 60, offX: 0, offY: 0 }; // scale = px per unit; offset in px from center
+let mode = 'pan';
+let dragging = false, lastX=0, lastY=0, dragMoved=false;
+let points = []; // {x,y,id,label}
+let functions = []; // {expr, color, id, compiled}
+let measurePts = [];
+let connections = []; // {id, aId, bId}
+let shapes = []; // {id, pointIds:[...]}
+let nextId = 1;
+let hoverPointId = null;
+let draggingPoint = null;
+const POINT_HIT_RADIUS = 16; // px, area sentuh diperbesar agar gampang diklik
+const colors = ['#dc2626','#1d4ed8','#059669','#d97706','#7c3aed','#db2777'];
+let colorIdx = 0;
+
+function resize(){
+  const r = wrap.getBoundingClientRect();
+  canvas.width = r.width * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  canvas.style.width = r.width+'px';
+  canvas.style.height = r.height+'px';
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  draw();
+}
+window.addEventListener('resize', resize);
+
+function cw(){ return canvas.width / devicePixelRatio; }
+function ch(){ return canvas.height / devicePixelRatio; }
+
+function toScreen(x,y){
+  return [ cw()/2 + view.offX + x*view.scale, ch()/2 + view.offY - y*view.scale ];
+}
+function toWorld(sx,sy){
+  return [ (sx - cw()/2 - view.offX)/view.scale, -(sy - ch()/2 - view.offY)/view.scale ];
+}
+
+function niceStep(target){
+  const pow = Math.pow(10, Math.floor(Math.log10(target)));
+  const n = target/pow;
+  let m;
+  if(n < 1.5) m=1; else if(n<3.5) m=2; else if(n<7.5) m=5; else m=10;
+  let step = m*pow;
+  // paksa selalu bilangan bulat (minimal 1), tidak pernah 0.5/0.2/dst
+  step = Math.max(1, Math.round(step));
+  return step;
+}
+
+function draw(){
+  const W=cw(), H=ch();
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,W,H);
+
+  const [wxA] = toWorld(0,0);
+  const [wxB] = toWorld(W,0);
+  const worldXMin = Math.min(wxA,wxB), worldXMax = Math.max(wxA,wxB);
+
+  const showGrid = document.getElementById('chkGrid').checked;
+  const showNumbers = document.getElementById('chkNumbers').checked;
+  const showMinor = document.getElementById('chkMinor').checked;
+
+  // determine grid step so lines are ~70-140px apart
+  let step = niceStep(90/view.scale);
+  let minorStep = step/5;
+
+  if(showGrid){
+    const [wx0] = toWorld(0,0);
+    const [wx1] = toWorld(W,0);
+    const [,wy0] = toWorld(0,0);
+    const [,wy1] = toWorld(0,H);
+    const xMin = Math.min(wx0,wx1), xMax = Math.max(wx0,wx1);
+    const yMin = Math.min(wy0,wy1), yMax = Math.max(wy0,wy1);
+
+    if(showMinor){
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      let startX = Math.floor(xMin/minorStep)*minorStep;
+      for(let x=startX; x<=xMax; x+=minorStep){
+        const [sx] = toScreen(x,0);
+        ctx.moveTo(sx+0.5,0); ctx.lineTo(sx+0.5,H);
+      }
+      let startY = Math.floor(yMin/minorStep)*minorStep;
+      for(let y=startY; y<=yMax; y+=minorStep){
+        const [,sy] = toScreen(0,y);
+        ctx.moveTo(0,sy+0.5); ctx.lineTo(W,sy+0.5);
+      }
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let startX = Math.floor(xMin/step)*step;
+    for(let x=startX; x<=xMax; x+=step){
+      if(Math.abs(x) < step/1000) continue;
+      const [sx] = toScreen(x,0);
+      ctx.moveTo(sx+0.5,0); ctx.lineTo(sx+0.5,H);
+    }
+    let startY = Math.floor(yMin/step)*step;
+    for(let y=startY; y<=yMax; y+=step){
+      if(Math.abs(y) < step/1000) continue;
+      const [,sy] = toScreen(0,y);
+      ctx.moveTo(0,sy+0.5); ctx.lineTo(W,sy+0.5);
+    }
+    ctx.stroke();
+
+    if(showNumbers){
+      ctx.fillStyle = '#0a0a0a';
+      ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+      const [oy] = toScreen(0,0);
+      const [,ox] = toScreen(0,0);
+      for(let x=startX; x<=xMax; x+=step){
+        if(Math.abs(x) < step/1000) continue;
+        const [sx] = toScreen(x,0);
+        let ly = Math.min(Math.max(ox, 14), H-6);
+        ctx.textAlign='center';
+        ctx.fillText(fmt(x), sx, ly+14);
+      }
+      for(let y=startY; y<=yMax; y+=step){
+        if(Math.abs(y) < step/1000) continue;
+        const [,sy] = toScreen(0,y);
+        let lx = Math.min(Math.max(oy, 22), W-4);
+        ctx.textAlign='left';
+        ctx.fillText(fmt(y), lx+4, sy+4);
+      }
+    }
+  }
+
+  // axes
+  const [ox,] = toScreen(0,0);
+  const [,oy] = toScreen(0,0);
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, oy); ctx.lineTo(W, oy);
+  ctx.moveTo(ox, 0); ctx.lineTo(ox, H);
+  ctx.stroke();
+
+  // arrows indicating infinity
+  drawArrow(W-4, oy, 0);
+  drawArrow(4, oy, 180);
+  drawArrow(ox, 4, -90);
+  drawArrow(ox, H-4, 90);
+
+  // origin label
+  if(showNumbers){
+    ctx.fillStyle = '#000';
+    ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign='right';
+    ctx.fillText('0', ox-4, oy+14);
+  }
+
+  // functions
+  functions.forEach(f=>{
+    if(!f.compiled) return;
+    const scopeExtra = f.params || {};
+    const evalF = x=>{
+      try{ const v = f.compiled.evaluate(Object.assign({x}, scopeExtra)); return (typeof v==='number' && isFinite(v)) ? v : NaN; }
+      catch(e){ return NaN; }
+    };
+
+    // sampling per pixel, dipecah jadi segmen agar celah/asimtot tidak nyambung
+    const samples = [];
+    for(let sx=0; sx<=W; sx++){
+      const [wx] = toWorld(sx,0);
+      const wy = evalF(wx);
+      if(isFinite(wy)){
+        const [,sy] = toScreen(wx,wy);
+        samples.push(Math.abs(sy) < H*5 ? {sx,sy} : null);
+      } else samples.push(null);
+    }
+    const segments = [];
+    let cur = [];
+    samples.forEach(s=>{
+      if(s){ cur.push(s); } else { if(cur.length>1) segments.push(cur); cur=[]; }
+    });
+    if(cur.length>1) segments.push(cur);
+
+    const [,axisOy] = toScreen(0,0);
+    if(f.shade){
+      ctx.fillStyle = f.color + '33';
+      segments.forEach(seg=>{
+        ctx.beginPath();
+        ctx.moveTo(seg[0].sx, axisOy);
+        seg.forEach(p=>ctx.lineTo(p.sx,p.sy));
+        ctx.lineTo(seg[seg.length-1].sx, axisOy);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 2.2;
+    segments.forEach(seg=>{
+      ctx.beginPath();
+      seg.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.sx,p.sy); else ctx.lineTo(p.sx,p.sy); });
+      ctx.stroke();
+    });
+
+    // titik potong sumbu (dalam rentang yang terlihat)
+    const roots = [];
+    const N = 300;
+    const dx = (worldXMax-worldXMin)/N;
+    let prevX = worldXMin, prevY = evalF(worldXMin);
+    for(let i=1;i<=N;i++){
+      const curX = worldXMin+i*dx;
+      const curY = evalF(curX);
+      if(isFinite(prevY) && isFinite(curY) && prevY*curY < 0){
+        let lo=prevX, hi=curX, loY=prevY;
+        for(let iter=0; iter<25; iter++){
+          const mid=(lo+hi)/2, midY=evalF(mid);
+          if(!isFinite(midY)) break;
+          if(loY*midY <= 0){ hi=mid; } else { lo=mid; loY=midY; }
+        }
+        roots.push((lo+hi)/2);
+      }
+      prevX=curX; prevY=curY;
+    }
+    let yIntercept = null;
+    if(worldXMin<=0 && 0<=worldXMax){
+      const v = evalF(0);
+      if(isFinite(v)) yIntercept = v;
+    }
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 2;
+    roots.forEach(rx=>{
+      const [sx,sy] = toScreen(rx,0);
+      ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    });
+    if(yIntercept!==null){
+      const [sx,sy] = toScreen(0,yIntercept);
+      ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    const infoEl = document.getElementById('fnIntercepts-'+f.id);
+    if(infoEl){
+      const rootsTxt = roots.length ? roots.map(r=>`x=${fmt(r)}`).join(', ') : '-';
+      const yTxt = yIntercept!==null ? `y=${fmt(yIntercept)}` : '-';
+      infoEl.textContent = `Potong X: ${rootsTxt} · Potong Y: ${yTxt}`;
+    }
+  });
+
+  // bangun datar (poligon)
+  shapes.forEach(s=>{
+    const pts = s.pointIds.map(id=>points.find(p=>p.id===id)).filter(Boolean);
+    if(pts.length<3) return;
+    ctx.beginPath();
+    pts.forEach((p,i)=>{
+      const [sx,sy] = toScreen(p.x,p.y);
+      if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+    });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(29,78,216,0.12)';
+    ctx.fill();
+    ctx.strokeStyle = '#1d4ed8';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    const {area,per} = polygonAreaPerimeter(pts);
+    const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+    const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+    const [scx,scy] = toScreen(cx,cy);
+    ctx.fillStyle = '#000';
+    ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign='center';
+    ctx.fillText(`L=${fmt(area)}`, scx, scy-6);
+    ctx.fillText(`K=${fmt(per)}`, scx, scy+8);
+  });
+
+  // garis penghubung antar titik
+  const showConn = document.getElementById('chkConn').checked;
+  if(showConn && connections.length){
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 2;
+    connections.forEach(c=>{
+      const a = points.find(p=>p.id===c.aId);
+      const b = points.find(p=>p.id===c.bId);
+      if(!a || !b) return;
+      const [sx1,sy1] = toScreen(a.x,a.y);
+      const [sx2,sy2] = toScreen(b.x,b.y);
+      ctx.beginPath();
+      ctx.moveTo(sx1,sy1);
+      ctx.lineTo(sx2,sy2);
+      ctx.stroke();
+      // label jarak di tengah garis
+      const dist = Math.hypot(b.x-a.x, b.y-a.y);
+      const label = fmt(dist);
+      ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+      const tw = ctx.measureText(label).width;
+      const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
+      ctx.fillStyle = 'rgba(255,255,255,0.88)';
+      ctx.fillRect(mx-tw/2-3, my-15, tw+6, 14);
+      ctx.fillStyle = '#111827';
+      ctx.textAlign='center';
+      ctx.fillText(label, mx, my-4);
+      ctx.strokeStyle = '#374151';
+    });
+  }
+
+  // points
+  const hideLabels = document.getElementById('chkHideLabels').checked;
+  points.forEach(p=>{
+    const [sx,sy] = toScreen(p.x,p.y);
+    const isHover = p.id === hoverPointId;
+    ctx.fillStyle = isHover ? '#1e3a8a' : '#1d4ed8';
+    ctx.beginPath();
+    ctx.arc(sx,sy, isHover ? 9 : 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth=2; ctx.stroke();
+    if(!hideLabels){
+      ctx.fillStyle = '#000';
+      ctx.font = '12px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textAlign='left';
+      const tag = p.label ? p.label : '';
+      ctx.fillText(`${tag}(${fmt(p.x)}, ${fmt(p.y)})`, sx+11, sy-10);
+    }
+  });
+
+  // measure
+  if(measurePts.length>0){
+    ctx.fillStyle = '#059669';
+    measurePts.forEach(p=>{
+      const [sx,sy]=toScreen(p.x,p.y);
+      ctx.beginPath(); ctx.arc(sx,sy,5,0,Math.PI*2); ctx.fill();
+    });
+    if(measurePts.length===2){
+      const [sx1,sy1]=toScreen(measurePts[0].x,measurePts[0].y);
+      const [sx2,sy2]=toScreen(measurePts[1].x,measurePts[1].y);
+      ctx.strokeStyle='#059669'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function drawArrow(x,y,angleDeg){
+  const a = angleDeg*Math.PI/180;
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(a);
+  ctx.fillStyle='#000';
+  ctx.beginPath();
+  ctx.moveTo(0,0); ctx.lineTo(-9,-4.5); ctx.lineTo(-9,4.5); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function hitTestPoint(sx,sy){
+  for(let i=points.length-1;i>=0;i--){
+    const p = points[i];
+    const [psx,psy] = toScreen(p.x,p.y);
+    if(Math.hypot(psx-sx,psy-sy) <= POINT_HIT_RADIUS) return p;
+  }
+  return null;
+}
+
+function fmt(n){
+  if(Math.abs(n) < 1e-9) return '0';
+  return (Math.round(n*100)/100).toString();
+}
+
+// --- interaction ---
+canvas.addEventListener('mousedown', e=>{
+  dragMoved = false;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  if(mode==='point'){
+    const hit = hitTestPoint(sx,sy);
+    if(hit){
+      draggingPoint = hit;
+      canvas.classList.add('dragging');
+      return;
+    }
+  }
+  if(mode==='pan'){
+    dragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+    canvas.classList.add('dragging');
+  }
+});
+window.addEventListener('mousemove', e=>{
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  const [wx,wy] = toWorld(sx,sy);
+  hud.textContent = `x: ${wx.toFixed(2)}, y: ${wy.toFixed(2)}`;
+  if(draggingPoint){
+    dragMoved = true;
+    draggingPoint.x = wx; draggingPoint.y = wy;
+    renderPointList();
+    draw();
+    return;
+  }
+  if(mode==='point'){
+    const hit = hitTestPoint(sx,sy);
+    const newHoverId = hit ? hit.id : null;
+    if(newHoverId !== hoverPointId){
+      hoverPointId = newHoverId;
+      canvas.style.cursor = hit ? 'grab' : 'crosshair';
+      draw();
+    }
+  }
+  if(dragging){
+    const dx = e.clientX-lastX, dy = e.clientY-lastY;
+    if(Math.abs(dx)>2||Math.abs(dy)>2) dragMoved = true;
+    view.offX += dx; view.offY += dy;
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+  }
+});
+window.addEventListener('mouseup', ()=>{
+  if(draggingPoint){
+    if(!dragMoved){
+      // klik singkat tanpa geser = hapus titik
+      removePoint(draggingPoint.id);
+      hoverPointId = null;
+      renderPointList();
+      renderConnList();
+      renderShapeList();
+      draw();
+    }
+    draggingPoint = null;
+    canvas.classList.remove('dragging');
+  }
+  dragging = false;
+  canvas.classList.remove('dragging');
+});
+canvas.addEventListener('click', e=>{
+  if(mode==='pan') return;
+  if(dragMoved) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  const [wx,wy] = toWorld(sx,sy);
+  if(mode==='point'){
+    if(hitTestPoint(sx,sy)) return; // sudah ditangani sebagai hapus di mouseup
+    points.push({x:wx,y:wy,id:nextId++});
+    renderPointList();
+    draw();
+  } else if(mode==='measure'){
+    measurePts.push({x:wx,y:wy});
+    if(measurePts.length>2) measurePts.shift();
+    renderMeasure();
+    draw();
+  }
+});
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  const [wx,wy] = toWorld(sx,sy);
+  const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  view.scale *= factor;
+  view.scale = Math.min(Math.max(view.scale, 4), 4000);
+  // keep cursor point stable
+  const [nsx,nsy] = toScreen(wx,wy);
+  view.offX += sx-nsx; view.offY += sy-nsy;
+  draw();
+}, {passive:false});
+
+// touch support (pan + pinch)
+let touchState = null;
+canvas.addEventListener('touchstart', e=>{
+  if(e.touches.length===1){
+    const t=e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const sx = t.clientX-rect.left, sy = t.clientY-rect.top;
+    let hitPoint = null;
+    if(mode==='point'){
+      hitPoint = hitTestPoint(sx,sy);
+      if(hitPoint){ draggingPoint = hitPoint; }
+    }
+    if(!hitPoint && mode==='pan'){ dragging=true; lastX=t.clientX; lastY=t.clientY; }
+    touchState = {type:'single', x:t.clientX, y:t.clientY, moved:false};
+  } else if(e.touches.length===2){
+    dragging=false; draggingPoint=null;
+    const [a,b]=e.touches;
+    touchState = {type:'pinch', dist: Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY), scale: view.scale};
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', e=>{
+  if(e.touches.length===1 && touchState && touchState.type==='single'){
+    const t=e.touches[0];
+    if(draggingPoint){
+      const rect = canvas.getBoundingClientRect();
+      const [wx,wy] = toWorld(t.clientX-rect.left, t.clientY-rect.top);
+      draggingPoint.x = wx; draggingPoint.y = wy;
+      touchState.moved = true;
+      renderPointList();
+      draw();
+    } else if(mode==='pan' && dragging){
+      const dx=t.clientX-lastX, dy=t.clientY-lastY;
+      view.offX+=dx; view.offY+=dy;
+      lastX=t.clientX; lastY=t.clientY;
+      touchState.moved = true;
+      draw();
+    }
+  } else if(e.touches.length===2 && touchState && touchState.type==='pinch'){
+    const [a,b]=e.touches;
+    const d = Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    view.scale = Math.min(Math.max(touchState.scale * (d/touchState.dist), 4), 4000);
+    draw();
+  }
+}, {passive:true});
+canvas.addEventListener('touchend', e=>{
+  if(draggingPoint){
+    if(!touchState.moved){
+      removePoint(draggingPoint.id);
+      renderPointList();
+      renderConnList();
+      renderShapeList();
+      draw();
+    }
+    draggingPoint = null;
+  } else if(touchState && touchState.type==='single' && !touchState.moved && mode!=='pan'){
+    const rect = canvas.getBoundingClientRect();
+    const sx = touchState.x-rect.left, sy = touchState.y-rect.top;
+    const [wx,wy] = toWorld(sx,sy);
+    if(mode==='point'){ points.push({x:wx,y:wy,id:nextId++}); renderPointList(); }
+    else if(mode==='measure'){ measurePts.push({x:wx,y:wy}); if(measurePts.length>2) measurePts.shift(); renderMeasure(); }
+    draw();
+  }
+  dragging=false; touchState=null;
+});
+
+// mode buttons
+document.getElementById('modeSeg').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  mode = b.dataset.mode;
+  canvas.classList.remove('mode-point','mode-measure');
+  if(mode==='point') canvas.classList.add('mode-point');
+  if(mode==='measure') canvas.classList.add('mode-measure');
+  document.getElementById('measureBlock').style.display = mode==='measure' ? 'block':'none';
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  view = {scale:60, offX:0, offY:0};
+  draw();
+});
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  points=[]; functions=[]; measurePts=[]; connections=[]; shapes=[];
+  renderPointList(); renderFnList(); renderMeasure(); renderConnList(); renderShapeList();
+  draw();
+});
+document.getElementById('zoomIn').addEventListener('click', ()=>{ view.scale=Math.min(view.scale*1.25,4000); draw(); });
+document.getElementById('zoomOut').addEventListener('click', ()=>{ view.scale=Math.max(view.scale/1.25,4); draw(); });
+
+['chkGrid','chkNumbers','chkMinor','chkHideLabels'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', draw);
+});
+
+document.getElementById('panelToggle').addEventListener('click', ()=>{
+  panel.classList.toggle('open');
+});
+
+// functions
+function extractParams(expr){
+  const candidates = ['a','b','c','k','m','n','p','q'];
+  return candidates.filter(letter => new RegExp('\\b'+letter+'\\b').test(expr));
+}
+
+function addFunction(expr){
+  const errEl = document.getElementById('fnErr');
+  errEl.textContent = '';
+  try{
+    const node = math.parse(expr);
+    const compiled = node.compile();
+    const paramNames = extractParams(expr);
+    const params = {};
+    paramNames.forEach(p=>{ params[p] = 1; });
+    compiled.evaluate(Object.assign({x:1}, params)); // test
+    const color = colors[colorIdx % colors.length]; colorIdx++;
+    functions.push({expr, color, id:nextId++, compiled, params, paramNames, shade:false});
+    renderFnList();
+    draw();
+  }catch(e){
+    errEl.textContent = 'Ekspresi tidak valid: ' + e.message;
+  }
+}
+document.getElementById('fnAdd').addEventListener('click', ()=>{
+  const inp = document.getElementById('fnInput');
+  if(inp.value.trim()==='') return;
+  addFunction(inp.value.trim());
+  inp.value='';
+});
+document.getElementById('fnInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ document.getElementById('fnAdd').click(); }
+});
+
+function renderFnList(){
+  const el = document.getElementById('fnList');
+  el.innerHTML = '';
+  functions.forEach(f=>{
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--panel-border);';
+
+    const row = document.createElement('div');
+    row.className='fn-row';
+    row.innerHTML = `<span class="swatch" style="background:${f.color}"></span><span>y = ${f.expr}</span>`;
+
+    const shadeLabel = document.createElement('label');
+    shadeLabel.style.cssText='display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);margin-left:auto;';
+    const shadeChk = document.createElement('input');
+    shadeChk.type='checkbox';
+    shadeChk.checked = f.shade;
+    shadeChk.style.cssText='width:13px;height:13px;';
+    shadeChk.addEventListener('change', ()=>{ f.shade = shadeChk.checked; draw(); });
+    shadeLabel.appendChild(shadeChk);
+    shadeLabel.appendChild(document.createTextNode('arsir'));
+    row.appendChild(shadeLabel);
+
+    const del = document.createElement('button');
+    del.textContent='✕';
+    del.onclick = ()=>{ functions = functions.filter(x=>x.id!==f.id); renderFnList(); draw(); };
+    row.appendChild(del);
+    wrap.appendChild(row);
+
+    f.paramNames.forEach(pn=>{
+      const srow = document.createElement('div');
+      srow.style.cssText = 'display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11.5px; margin:2px 0 2px 20px;';
+      const lbl = document.createElement('span');
+      lbl.textContent = pn + ' =';
+      lbl.style.cssText='width:26px;';
+      const range = document.createElement('input');
+      range.type='range'; range.min='-10'; range.max='10'; range.step='0.1';
+      range.value = f.params[pn];
+      range.style.cssText='flex:1;';
+      const valSpan = document.createElement('span');
+      valSpan.textContent = f.params[pn].toFixed(1);
+      valSpan.style.cssText='width:34px; text-align:right;';
+      range.addEventListener('input', ()=>{
+        f.params[pn] = parseFloat(range.value);
+        valSpan.textContent = f.params[pn].toFixed(1);
+        draw();
+      });
+      srow.appendChild(lbl); srow.appendChild(range); srow.appendChild(valSpan);
+      wrap.appendChild(srow);
+    });
+
+    const info = document.createElement('div');
+    info.id = 'fnIntercepts-'+f.id;
+    info.style.cssText = 'font-size:11px; color:var(--muted); margin:4px 0 0 20px;';
+    wrap.appendChild(info);
+
+    el.appendChild(wrap);
+  });
+}
+
+function renderPointList(){
+  const el = document.getElementById('ptList');
+  const empty = document.getElementById('ptEmpty');
+  el.innerHTML = '';
+  empty.style.display = points.length===0 ? 'block':'none';
+  points.forEach(p=>{
+    const row = document.createElement('div');
+    row.className='list-item';
+    row.innerHTML = `<span>${p.label ? p.label : ''}(${fmt(p.x)}, ${fmt(p.y)})</span>`;
+    const del = document.createElement('button');
+    del.textContent='✕';
+    del.onclick = ()=>{ removePoint(p.id); renderPointList(); renderConnList(); renderShapeList(); draw(); };
+    row.appendChild(del);
+    el.appendChild(row);
+  });
+}
+
+function findPointByQuery(q){
+  q = (q||'').trim();
+  if(!q) return null;
+  const byLabel = points.find(p => p.label && p.label.toLowerCase() === q.toLowerCase());
+  if(byLabel) return byLabel;
+  const cleaned = q.replace(/[()]/g, '');
+  const parts = cleaned.split(',');
+  if(parts.length===2){
+    const x = parseFloat(parts[0].trim());
+    const y = parseFloat(parts[1].trim());
+    if(isFinite(x) && isFinite(y)){
+      return points.find(p => Math.abs(p.x-x)<1e-6 && Math.abs(p.y-y)<1e-6) || null;
+    }
+  }
+  return null;
+}
+
+function pointLabelText(p){
+  return `${p.label ? p.label : ''}(${fmt(p.x)}, ${fmt(p.y)})`;
+}
+
+function removePoint(id){
+  points = points.filter(p=>p.id!==id);
+  connections = connections.filter(c=>c.aId!==id && c.bId!==id);
+  shapes = shapes.filter(s=>!s.pointIds.includes(id));
+}
+
+function addConnection(){
+  const fromEl = document.getElementById('connFromInput');
+  const toEl = document.getElementById('connToInput');
+  const errEl = document.getElementById('connErr');
+  errEl.textContent = '';
+  const a = findPointByQuery(fromEl.value);
+  const b = findPointByQuery(toEl.value);
+  if(!a || !b){
+    errEl.textContent = 'Titik tidak ditemukan. Pastikan nama atau koordinat (x,y) sesuai titik yang sudah ada.';
+    return;
+  }
+  if(a.id===b.id){
+    errEl.textContent = 'Pilih dua titik yang berbeda.';
+    return;
+  }
+  const exists = connections.some(c => (c.aId===a.id && c.bId===b.id) || (c.aId===b.id && c.bId===a.id));
+  if(exists){
+    errEl.textContent = 'Garis penghubung ini sudah ada.';
+    return;
+  }
+  connections.push({id: nextId++, aId: a.id, bId: b.id});
+  renderConnList();
+  draw();
+  fromEl.value=''; toEl.value='';
+}
+document.getElementById('connAddBtn').addEventListener('click', addConnection);
+['connFromInput','connToInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') addConnection(); });
+});
+document.getElementById('chkConn').addEventListener('change', draw);
+
+function renderConnList(){
+  const el = document.getElementById('connList');
+  const empty = document.getElementById('connEmpty');
+  el.innerHTML = '';
+  empty.style.display = connections.length===0 ? 'block' : 'none';
+  connections.forEach(c=>{
+    const a = points.find(p=>p.id===c.aId);
+    const b = points.find(p=>p.id===c.bId);
+    if(!a || !b) return;
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `<span>${pointLabelText(a)} — ${pointLabelText(b)}</span>`;
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.onclick = ()=>{ connections = connections.filter(x=>x.id!==c.id); renderConnList(); draw(); };
+    row.appendChild(del);
+    el.appendChild(row);
+  });
+}
+
+function addManualPoint(){
+  const nameEl = document.getElementById('ptNameInput');
+  const xEl = document.getElementById('ptXInput');
+  const yEl = document.getElementById('ptYInput');
+  const errEl = document.getElementById('ptErr');
+  errEl.textContent = '';
+  const x = parseFloat(xEl.value.replace(',', '.'));
+  const y = parseFloat(yEl.value.replace(',', '.'));
+  if(!isFinite(x) || !isFinite(y)){
+    errEl.textContent = 'Isi nilai x dan y yang valid.';
+    return;
+  }
+  const label = nameEl.value.trim();
+  points.push({x, y, label: label || null, id: nextId++});
+  renderPointList();
+  draw();
+  nameEl.value=''; xEl.value=''; yEl.value='';
+  nameEl.focus();
+}
+document.getElementById('ptAddBtn').addEventListener('click', addManualPoint);
+['ptNameInput','ptXInput','ptYInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{
+    if(e.key==='Enter') addManualPoint();
+  });
+});
+
+document.getElementById('reflBtn').addEventListener('click', ()=>{
+  const inp = document.getElementById('reflInput');
+  const axisSel = document.getElementById('reflAxis');
+  const errEl = document.getElementById('reflErr');
+  errEl.textContent = '';
+  const p = findPointByQuery(inp.value);
+  if(!p){ errEl.textContent = 'Titik tidak ditemukan.'; return; }
+  let nx, ny;
+  switch(axisSel.value){
+    case 'x': nx=p.x; ny=-p.y; break;
+    case 'y': nx=-p.x; ny=p.y; break;
+    case 'yx': nx=p.y; ny=p.x; break;
+    case 'origin': nx=-p.x; ny=-p.y; break;
+  }
+  const label = p.label ? p.label+"'" : null;
+  points.push({x:nx, y:ny, label, id:nextId++});
+  renderPointList();
+  draw();
+  inp.value='';
+});
+
+function polygonAreaPerimeter(pts){
+  let area=0, per=0;
+  for(let i=0;i<pts.length;i++){
+    const p1=pts[i], p2=pts[(i+1)%pts.length];
+    area += (p1.x*p2.y - p2.x*p1.y);
+    per += Math.hypot(p2.x-p1.x, p2.y-p1.y);
+  }
+  return { area: Math.abs(area)/2, per };
+}
+
+function addShape(){
+  const inp = document.getElementById('shapeInput');
+  const errEl = document.getElementById('shapeErr');
+  errEl.textContent = '';
+  const tokens = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(tokens.length<3){ errEl.textContent='Minimal 3 titik untuk membentuk bangun datar.'; return; }
+  const pts = tokens.map(t=>findPointByQuery(t));
+  if(pts.some(p=>!p)){ errEl.textContent='Salah satu titik tidak ditemukan.'; return; }
+  shapes.push({id:nextId++, pointIds: pts.map(p=>p.id)});
+  renderShapeList();
+  draw();
+  inp.value='';
+}
+document.getElementById('shapeAddBtn').addEventListener('click', addShape);
+document.getElementById('shapeInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addShape(); });
+
+function renderShapeList(){
+  const el = document.getElementById('shapeList');
+  const empty = document.getElementById('shapeEmpty');
+  el.innerHTML='';
+  empty.style.display = shapes.length===0 ? 'block':'none';
+  shapes.forEach(s=>{
+    const pts = s.pointIds.map(id=>points.find(p=>p.id===id)).filter(Boolean);
+    if(pts.length<3) return;
+    const {area,per} = polygonAreaPerimeter(pts);
+    const row = document.createElement('div');
+    row.className='list-item';
+    row.style.cssText='align-items:flex-start;';
+    const names = pts.map(p=>pointLabelText(p)).join(', ');
+    row.innerHTML = `<span>${names}<br>Luas=${fmt(area)}, Keliling=${fmt(per)}</span>`;
+    const del = document.createElement('button');
+    del.textContent='✕';
+    del.onclick = ()=>{ shapes = shapes.filter(x=>x.id!==s.id); renderShapeList(); draw(); };
+    row.appendChild(del);
+    el.appendChild(row);
+  });
+}
+
+function renderMeasure(){
+  const el = document.getElementById('measureInfo');
+  if(measurePts.length<2){
+    el.textContent = 'Klik dua titik di kanvas untuk mengukur jarak & kemiringan.';
+    return;
+  }
+  const [a,b] = measurePts;
+  const dx = b.x-a.x, dy = b.y-a.y;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  const slope = dx!==0 ? (dy/dx) : Infinity;
+  el.innerHTML = `Titik A: (${fmt(a.x)}, ${fmt(a.y)})<br>Titik B: (${fmt(b.x)}, ${fmt(b.y)})<br>Δx = ${fmt(dx)}, Δy = ${fmt(dy)}<br>Jarak = ${fmt(dist)}<br>Kemiringan (m) = ${isFinite(slope) ? fmt(slope) : 'tak terhingga'}`;
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const data = {
+    points: points.map(p=>({x:p.x,y:p.y,label:p.label,id:p.id})),
+    connections: connections.map(c=>({id:c.id,aId:c.aId,bId:c.bId})),
+    shapes: shapes.map(s=>({id:s.id,pointIds:s.pointIds})),
+    functions: functions.map(f=>({id:f.id,expr:f.expr,color:f.color,params:f.params,shade:f.shade})),
+    view: view
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sumbu-kartesius-sesi.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      points = data.points || [];
+      connections = data.connections || [];
+      shapes = data.shapes || [];
+      functions = (data.functions||[]).map(f=>{
+        const node = math.parse(f.expr);
+        const compiled = node.compile();
+        const paramNames = extractParams(f.expr);
+        return Object.assign({}, f, {compiled, paramNames});
+      });
+      if(data.view) view = data.view;
+      let maxId = 0;
+      [...points, ...connections, ...shapes, ...functions].forEach(o=>{ if(o.id>maxId) maxId=o.id; });
+      nextId = maxId+1;
+      renderPointList(); renderConnList(); renderShapeList(); renderFnList();
+      draw();
+    }catch(err){
+      alert('Gagal memuat file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('printBtn').addEventListener('click', ()=>{
+  window.print();
+});
+
+resize();
+</script>
+</body>
+</html>
